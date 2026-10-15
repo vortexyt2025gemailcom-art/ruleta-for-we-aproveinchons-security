@@ -424,8 +424,7 @@ function shop(){const g=$('#gr');g.innerHTML='';
   else b.innerHTML=CI+fmt(pr);
   b.onclick=async()=>{
    if(!own){if(!acct)return need('Para comprar necesitas una cuenta (es gratis).');if(st.coins<pr)return toast('Te faltan '+fmt(pr-st.coins)+' monedas');
-    st.coins-=pr;
-    st.own[k]=1;coins();toast('¡Comprado!')}
+    try{const r=await api('buy',{n:acct.n,k:acct.k,key:k});st.coins=r.c;st.own=r.o;coins();toast('¡Comprado!')}catch(e){lost(e);return toast(e.message)}}
    if(sp)return $(k==='rf'?'#pF':'#pV').click();
    if(tab==='r'){if(st.rs===v&&WS[v][2]==='ra')st.rm=!st.rm;else st.rs=v}else if(tab==='f')st.bg=v;else if(tab==='d')st.dc=st.dc===v?'':v;else{const f=v.slice(0,2),i=+v.slice(2);st[f]=st[f]===i?'':i}
    save();apply();shop()};
@@ -558,7 +557,7 @@ $('#uF').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)re
  try{UPH=(await photo(f,96)).toDataURL('image/jpeg',.7);if(prof){prof.p=UPH;PS();openU()}else toast('✅ Foto lista')}catch{toast('No pude leer esa foto')}};
 
 /* monedas: 50 por minuto en la página */
-setInterval(()=>{if(document.hidden||!isIn())return;st.sec++;tm();if(st.sec%60===0){st.coins+=50;coins();rain(50)}if(st.sec%10===0)save()},1000);
+setInterval(()=>{if(document.hidden||!isIn())return;st.sec++;tm();if(st.sec%60===0){gain()}if(st.sec%10===0)save()},1000);
 const _spin=spin;spin=async()=>{if(busy||!items.length||!isIn())return;try{await _spin()}finally{busy=false;batt(0);list()}};
 
 /* ojo: ocultar botones, ruleta grande, tocar en cualquier lado para girar */
@@ -582,8 +581,8 @@ need=m=>gate(m||'Para esto necesitas una cuenta (es gratis).');
 async function api(a,o){let r,j;try{r=await fetch('/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({a,...o})});j=await r.json()}catch{throw Error('Sin conexión')}
  if(!r.ok)throw Error(j.e||'Error');return j}
 async function sync(){if(!acct)return;
- try{const r=await api('save',{n:acct.n,k:acct.k,d:pk(),p:acct.p});if(r.g){st.coins+=r.g;coins();toast('🎁 Recibiste '+fmt(r.g)+' monedas')}}
- catch(e){if(e.message==='Sesión inválida'){acct=null;AS();who();toast('Tu sesión venció, entra otra vez')}}}
+ try{const r=await api('save',{n:acct.n,k:acct.k,d:pk(),p:acct.p});if(r.c!==undefined){if(r.c>st.coins)toast('🎁 Recibiste '+fmt(r.c-st.coins)+' monedas');st.coins=r.c;coins()}}
+ catch(e){lost(e)}}
 function push(){if(!acct||syncT)return;syncT=setTimeout(()=>{syncT=0;document.hidden||sync()},45000)}
 function flush(){clearTimeout(syncT);syncT=0;return sync()}
 document.addEventListener('visibilitychange',()=>document.hidden&&flush());
@@ -594,7 +593,7 @@ function adopt(d){if(!d||d.coins===undefined)return;const it=d.items;delete d.it
  $('#kp').value=st.keep?1:0;apply();coins();list();draw()}
 async function boot(){if(!acct)return;
  try{const j=await api('me',{n:acct.n,k:acct.k});if(j.p)acct.p=j.p;AS();adopt(j.d);who()}
- catch(e){if(e.message==='Sesión inválida'){acct=null;AS();who()}}}
+ catch(e){lost(e)}}
 function who(){$('#bU').textContent=acct?'👤 '+acct.n:'👤 Entrar';if(acct)st.nick=acct.n;$('#sN').value=st.nick;$('#sN').disabled=!!acct}
 function gate(msg,mode){const o=$('#lkz');o&&o.remove();const reg=(mode||'u')==='u',L=document.createElement('div');L.id='lkz';
  L.innerHTML=`<button class="x" id="gX" style="position:absolute;top:14px;right:14px">✕</button><b style="font-size:22px">${reg?'Crea tu cuenta':'Iniciar sesión'}</b><div class="lb" style="text-align:center;max-width:320px">${msg||'Guarda tus monedas y skins en la nube y entra desde cualquier celular.'}</div>`
@@ -612,7 +611,7 @@ function gate(msg,mode){const o=$('#lkz');o&&o.remove();const reg=(mode||'u')===
   if(reg&&p!==$('#rQ').value)return M.textContent='Las contraseñas no coinciden';
   $('#rK').disabled=true;M.textContent='Conectando…';
   try{const j=await api(reg?'reg':'login',reg?{n:nm,r,pw:p,p:UPH,d:pk()}:{n:nm,pw:p});
-   acct={n:j.n,k:j.k,p:j.p||'',r:j.r||''};AS();reg||adopt(j.d);who();end();toast('¡Hola, '+acct.n+'!')}
+   acct={n:j.n,k:j.k,p:j.p||'',r:j.r||''};AS();adopt(j.d);who();end();toast('¡Hola, '+acct.n+'!')}
   catch(e){M.textContent='❌ '+e.message;$('#rK').disabled=false}}}
 function openU(){if(!acct)return gate();$('#uH').textContent='Mi perfil';
  $('#uB').innerHTML=`<div class="r" style="justify-content:flex-start">${pic(acct.p,64)}<div><b>${esc(acct.n)}</b><div class="lb">${esc(acct.r||'')}</div></div></div><button class="sm" id="uP">📷 Cambiar foto</button><button class="sm" id="uX">Cerrar sesión</button>`;
@@ -621,6 +620,10 @@ $('#uF').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)re
  if(!(OK.test(f.type)||(!f.type&&EXT.test(f.name))))return toast('Solo se permiten fotos');
  try{UPH=(await photo(f,96)).toDataURL('image/jpeg',.7);if(acct){acct.p=UPH;AS();flush();openU()}else toast('✅ Foto lista')}catch{toast('No pude leer esa foto')}};
 
+/* monedas: las maneja el servidor */
+function lost(e){if(/^(Sesión|Cuenta bloq)/.test(e.message)){acct=null;AS();who();toast(e.message)}}
+async function gain(){if(!acct){st.coins+=50;coins();rain(50);return}
+ try{const r=await api('earn',{n:acct.n,k:acct.k});st.coins=r.c;coins();r.v&&rain(r.v)}catch(e){lost(e)}}
 /* mantener / normal */
 $('#kp').value=st.keep?1:0;$('#kp').onchange=()=>{st.keep=$('#kp').value==='1';save()};
 
@@ -647,7 +650,7 @@ function packs(){const g=$('#pk');g.innerHTML='';
  [500,1500,5000,10000,50000].forEach(n=>{const d=document.createElement('div');d.className='it';
   d.innerHTML=`<div style="font-size:26px">${CI}</div><b>${fmt(n)}</b><small class="lb">monedas</small>`;
   const add=(t,f)=>{const b=document.createElement('button');b.textContent=t;b.onclick=f;d.append(b)};
-  if(OWN){add('Agarrar gratis',()=>{st.coins+=n;coins();rain(n);flush()});add('Crear código',()=>mk(n))}else add('Comprar',()=>pay(n));
+  if(OWN){add('Agarrar gratis',async()=>{if(!acct)return need('Entra a tu cuenta para recibirlas.');try{const j=await api('grant',{key:OWN,n:acct.n,k:acct.k,v:n});st.coins=j.c;coins();rain(n)}catch(e){toast(e.message);lost(e)}});add('Crear código',()=>mk(n))}else add('Comprar',()=>pay(n));
   g.append(d)})}
 async function mk(n){try{const j=await api('mk',{key:OWN,v:n}),m=encodeURIComponent('🎁 Tu código de regalo de '+fmt(n)+' monedas:\n'+j.code+'\n\nCanjéalo en la ruleta: Monedas (＋) → Canjear código de regalo. Es de un solo uso.');
  $('#tH').textContent='Código creado';
