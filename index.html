@@ -335,7 +335,12 @@ function loop(t){const dt=Math.min(40,t-lt);lt=t;fc.clearRect(0,0,innerWidth,inn
 const bd=$('#bd');let cur=null;
 function open(id){close();cur=$(id);cur.classList.add('open');bd.classList.add('on')}
 function close(){cur&&cur.classList.remove('open');bd.classList.remove('on');cur=null}
-$('#bM').onclick=()=>open('#sA');$('#bS').onclick=()=>open('#sC');bd.onclick=close;
+$('#bM').onclick=()=>{
+ $('#tH').textContent='Elegir cantidad de monedas';
+ $('#tB').innerHTML='<div class="lb">Escribe cuántas monedas quieres agregar.</div><input class="in" id="freeCoinAmount" type="number" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="Ej.: 1000000"><div class="lb" id="freeCoinMsg">Se aplicará a las monedas guardadas en este navegador.</div><button class="ok2" id="freeCoinAdd">Agregar monedas</button>';
+ $('#freeCoinAdd').onclick=()=>{const v=Number($('#freeCoinAmount').value),m=$('#freeCoinMsg');if(!Number.isSafeInteger(v)||v<1||v>1000000000){m.textContent='Escribe una cantidad entera entre 1 y 1.000.000.000.';return}st.coins+=v;coins();m.textContent='Se agregaron '+fmtx(v)+' monedas en este navegador.';rain(v);toast('Monedas agregadas')};
+ open('#sQ');setTimeout(()=>$('#freeCoinAmount')?.focus(),100)
+};$('#bS').onclick=()=>open('#sC');bd.onclick=close;
 document.querySelectorAll('.x').forEach(b=>b.onclick=close);
 
 let tt;function toast(m){const t=$('#ts');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2300)}
@@ -377,7 +382,7 @@ let st={coins:500,own:{},rs:0,bg:0,dc:'',ph:'',an:''},PH=null,tab='r';
 try{Object.assign(st,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch{}
 if(st.bg==='v')st.bg=0;if(st.rs==='f'&&!st.ph)st.rs=0;
 if(st.ph){const im=new Image();im.onload=()=>{PH=im;draw()};im.src=st.ph}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch{}typeof push==='function'&&push()};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch{}typeof localSaveAccount==='function'&&localSaveAccount();typeof push==='function'&&push()};
 const COIN='<svg viewBox="0 0 32 32" width="24" height="24"><circle cx="16" cy="16" r="15" fill="#e0a100"/><circle cx="16" cy="16" r="12.5" fill="#ffd23f" stroke="#b97d00" stroke-width="1.5"/><path d="M16 8l2.4 5 5.4.7-4 3.7 1 5.4-4.8-2.6-4.8 2.6 1-5.4-4-3.7 5.4-.7z" fill="#fff3b0"/></svg>';
 const CI=IMG.moneda?`<img src="${IMG.moneda}" height="24">`:COIN;
 $('#cI').innerHTML=CI;
@@ -424,7 +429,7 @@ function shop(){const g=$('#gr');g.innerHTML='';
   else b.innerHTML=CI+fmt(pr);
   b.onclick=async()=>{
    if(!own){if(!acct)return need('Para comprar necesitas una cuenta (es gratis).');if(st.coins<pr)return toast('Te faltan '+fmt(pr-st.coins)+' monedas');
-    try{const r=await api('buy',{n:acct.n,k:acct.k,key:k});st.coins=r.c;st.own=r.o;coins();toast('¡Comprado!')}catch(e){lost(e);return toast(e.message)}}
+    try{const r=await localAction('buy',{n:acct.n,k:acct.k,key:k});st.coins=r.c;st.own=r.o;coins();toast('¡Comprado!')}catch(e){lost(e);return toast(e.message)}}
    if(sp)return $(k==='rf'?'#pF':'#pV').click();
    if(tab==='r'){if(st.rs===v&&WS[v][2]==='ra')st.rm=!st.rm;else st.rs=v}else if(tab==='f')st.bg=v;else if(tab==='d')st.dc=st.dc===v?'':v;else{const f=v.slice(0,2),i=+v.slice(2);st[f]=st[f]===i?'':i}
    save();apply();shop()};
@@ -573,15 +578,59 @@ document.addEventListener('click',e=>{if(document.body.classList.contains('clean
 
 
 /* ===== v3: nube, cuenta opcional, regalos y códigos ===== */
-var acct=null,OWN=null,syncT=0;
-try{acct=JSON.parse(localStorage.getItem('ruleta_acct'));OWN=localStorage.getItem('ruleta_ok')}catch{}
+/* MODO DUEÑO LOCAL: funciona dentro de este HTML.
+   AVISO: al publicar este archivo, cualquier persona puede leer la clave incrustada. */
+const LOCAL_OWNER_KEY='ONG864HNI853YIBFE3789REGJIYE';
+var acct=null,OWN=LOCAL_OWNER_KEY,syncT=0;
+try{acct=JSON.parse(localStorage.getItem('ruleta_acct'))}catch{}
 const AS=()=>{try{acct?localStorage.setItem('ruleta_acct',JSON.stringify(acct)):localStorage.removeItem('ruleta_acct')}catch{}},
 pk=()=>({...st,items:items.map(i=>({id:i.id,name:i.name}))}),
 need=m=>gate(m||'Para esto necesitas una cuenta (es gratis).');
-async function api(a,o){let r,j;try{r=await fetch('/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({a,...o})});j=await r.json()}catch{throw Error('Sin conexión')}
- if(!r.ok)throw Error(j.e||'Error');return j}
+/* API LOCAL: no usa fetch, /api ni funciones externas. Todo queda en este HTML y en el almacenamiento de este navegador. */
+const LOCAL_DB_KEY='ruleta_cuentas_local_v1',LOCAL_CODES_KEY='ruleta_codigos_local_v1';
+function localRead(key,fallback){try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}}
+function localWrite(key,value){try{localStorage.setItem(key,JSON.stringify(value))}catch{throw Error('No hay espacio disponible en el almacenamiento del navegador')}}
+function localAccounts(){return localRead(LOCAL_DB_KEY,{})}
+function localSaveAccount(){if(!acct||typeof pk!=='function')return;const db=localAccounts(),u=db[acct.n];if(!u)return;u.d=pk();u.p=acct.p||u.p||'';u.r=acct.r||u.r||'';localWrite(LOCAL_DB_KEY,db)}
+async function localAction(a,o={}){
+ const db=localAccounts();let u,code,amount;
+ if(a==='reg'){
+  const n=String(o.n||'').trim();if(db[n])throw Error('Ese nombre ya está registrado en este dispositivo');
+  const k='local-'+Math.random().toString(36).slice(2)+Date.now().toString(36);
+  const d=o.d||{coins:500,own:{},rs:0,bg:0,dc:'',ph:'',items:[]};if(typeof d.coins!=='number')d.coins=500;
+  db[n]={n,pw:String(o.pw||''),k,p:o.p||'',r:o.r||'',d};localWrite(LOCAL_DB_KEY,db);return {n,k,p:db[n].p,r:db[n].r,d:db[n].d};
+ }
+ if(a==='login'){
+  u=db[String(o.n||'').trim()];if(!u||u.pw!==String(o.pw||''))throw Error('Nombre o contraseña incorrectos');
+  return {n:u.n,k:u.k,p:u.p||'',r:u.r||'',d:u.d};
+ }
+ if(a==='find')return {u:Object.values(db).filter(x=>x.n.toLowerCase().includes(String(o.q||'').toLowerCase())).map(x=>({n:x.n,p:x.p||''})).slice(0,50)};
+ if(a==='mk'){
+  if(o.key!==LOCAL_OWNER_KEY)throw Error('Código de dueño incorrecto');
+  code='RW-'+Math.random().toString(36).slice(2,8).toUpperCase()+'-'+Date.now().toString(36).toUpperCase();
+  const codes=localRead(LOCAL_CODES_KEY,{});codes[code]={v:Number(o.v)||0,used:false};localWrite(LOCAL_CODES_KEY,codes);return {code};
+ }
+ u=db[String(o.n||'')];if(!u||u.k!==o.k)throw Error('Esta cuenta no existe en el almacenamiento local. Crea una cuenta nueva en este dispositivo.');
+ if(a==='save'){u.d=o.d||u.d;u.p=o.p||u.p||'';localWrite(LOCAL_DB_KEY,db);return {c:Number(u.d.coins)||0}}
+ if(a==='me')return {n:u.n,k:u.k,p:u.p||'',r:u.r||'',d:u.d};
+ if(a==='earn'){u.d.coins=(Number(u.d.coins)||0)+50;localWrite(LOCAL_DB_KEY,db);return {c:u.d.coins,v:50}}
+ if(a==='buy'){
+  const priceMap={};try{WS.forEach((x,i)=>priceMap['r'+i]=x[1]);BG.forEach((x,i)=>priceMap['b'+i]=x[1]);DC.forEach(x=>priceMap['d'+x[0]]=x[2]);PCOL.forEach((x,i)=>priceMap['pc'+i]=i?200+i*100:0);PDEC.forEach((x,i)=>priceMap['pd'+i]=800+i*400);HDEC.forEach((x,i)=>priceMap['hd'+i]=800+i*400);PCOL.forEach((x,i)=>priceMap['hc'+i]=i?200+i*100:0)}catch{}
+  const price=Number(priceMap[o.key]??0);if((Number(u.d.coins)||0)<price)throw Error('No tienes suficientes monedas');u.d.coins-=price;u.d.own=u.d.own||{};u.d.own[o.key]=true;localWrite(LOCAL_DB_KEY,db);return {c:u.d.coins,o:u.d.own}
+ }
+ if(a==='grant'){
+  if(o.key!==LOCAL_OWNER_KEY)throw Error('Código de dueño incorrecto');amount=Number(o.v);if(!Number.isSafeInteger(amount)||amount<1||amount>1000000000)throw Error('Cantidad no válida');u.d.coins=(Number(u.d.coins)||0)+amount;localWrite(LOCAL_DB_KEY,db);return {c:u.d.coins}
+ }
+ if(a==='gift'){
+  amount=Math.floor(Number(o.amt));const to=db[String(o.to||'')];if(!to)throw Error('Ese perfil no existe en este navegador');if(amount<1||amount>(Number(u.d.coins)||0))throw Error('Cantidad no válida o saldo insuficiente');u.d.coins-=amount;to.d.coins=(Number(to.d.coins)||0)+amount;localWrite(LOCAL_DB_KEY,db);return {c:u.d.coins}
+ }
+ if(a==='use'){
+  const codes=localRead(LOCAL_CODES_KEY,{});code=String(o.code||'').trim().toUpperCase();const c=codes[code];if(!c||c.used)throw Error('Código inválido o ya utilizado');c.used=true;u.d.coins=(Number(u.d.coins)||0)+c.v;localWrite(LOCAL_CODES_KEY,codes);localWrite(LOCAL_DB_KEY,db);return {c:u.d.coins,v:c.v}
+ }
+ throw Error('Función no disponible en modo de un solo archivo');
+}
 async function sync(){if(!acct)return;
- try{const r=await api('save',{n:acct.n,k:acct.k,d:pk(),p:acct.p});if(r.c!==undefined){if(r.c>st.coins)toast('🎁 Recibiste '+fmt(r.c-st.coins)+' monedas');st.coins=r.c;coins()}}
+ try{const r=await localAction('save',{n:acct.n,k:acct.k,d:pk(),p:acct.p});if(r.c!==undefined){if(r.c>st.coins)toast('🎁 Recibiste '+fmt(r.c-st.coins)+' monedas');st.coins=r.c;coins()}}
  catch(e){lost(e)}}
 function push(){if(!acct||syncT)return;syncT=setTimeout(()=>{syncT=0;document.hidden||sync()},45000)}
 function flush(){clearTimeout(syncT);syncT=0;return sync()}
@@ -592,11 +641,11 @@ function adopt(d){if(!d||d.coins===undefined)return;const it=d.items;delete d.it
  PH=null;if(st.ph){const im=new Image();im.onload=()=>{PH=im;draw()};im.src=st.ph}
  $('#kp').value=st.keep?1:0;apply();coins();list();draw()}
 async function boot(){if(!acct)return;
- try{const j=await api('me',{n:acct.n,k:acct.k});if(j.p)acct.p=j.p;AS();adopt(j.d);who()}
+ try{const j=await localAction('me',{n:acct.n,k:acct.k});if(j.p)acct.p=j.p;AS();adopt(j.d);who()}
  catch(e){lost(e)}}
 function who(){$('#bU').textContent=acct?'👤 '+acct.n:'👤 Entrar';if(acct)st.nick=acct.n;$('#sN').value=st.nick;$('#sN').disabled=!!acct}
 function gate(msg,mode){const o=$('#lkz');o&&o.remove();const reg=(mode||'u')==='u',L=document.createElement('div');L.id='lkz';
- L.innerHTML=`<button class="x" id="gX" style="position:absolute;top:14px;right:14px">✕</button><b style="font-size:22px">${reg?'Crea tu cuenta':'Iniciar sesión'}</b><div class="lb" style="text-align:center;max-width:320px">${msg||'Guarda tus monedas y skins en la nube y entra desde cualquier celular.'}</div>`
+ L.innerHTML=`<button class="x" id="gX" style="position:absolute;top:14px;right:14px">✕</button><b style="font-size:22px">${reg?'Crea tu cuenta':'Iniciar sesión'}</b><div class="lb" style="text-align:center;max-width:320px">${msg||'Guarda tus monedas y skins en este navegador. Esta cuenta no se sincroniza con otros dispositivos.'}</div>`
  +(reg?'<input class="in" id="rN" placeholder="Nombre real (privado)" maxlength="30" autocomplete="off">':'')
  +`<input class="in" id="rU" placeholder="${reg?'Nombre que verán todos en tu perfil':'Tu nombre de perfil'}" maxlength="16" autocomplete="${reg?'off':'username'}"><input class="in" id="rP" type="password" placeholder="Contraseña (mínimo 6)" autocomplete="${reg?'new':'current'}-password">`
  +(reg?'<input class="in" id="rQ" type="password" placeholder="Confirmar contraseña" autocomplete="new-password"><button class="sm" id="rF">🖼️ Foto de perfil (opcional)</button>':'')
@@ -609,7 +658,7 @@ function gate(msg,mode){const o=$('#lkz');o&&o.remove();const reg=(mode||'u')===
   if(!/^\w{3,16}$/.test(nm))return M.textContent='Nombre de perfil: 3 a 16 letras, números o _';
   if(p.length<6)return M.textContent='La contraseña necesita 6 o más caracteres';
   if(reg&&p!==$('#rQ').value)return M.textContent='Las contraseñas no coinciden';
-  $('#rK').disabled=true;M.textContent='Conectando…';
+  $('#rK').disabled=true;M.textContent='Creando o verificando cuenta local…';
   try{const j=await api(reg?'reg':'login',reg?{n:nm,r,pw:p,p:UPH,d:pk()}:{n:nm,pw:p});
    acct={n:j.n,k:j.k,p:j.p||'',r:j.r||''};AS();adopt(j.d);who();end();toast('¡Hola, '+acct.n+'!')}
   catch(e){M.textContent='❌ '+e.message;$('#rK').disabled=false}}}
@@ -620,17 +669,17 @@ $('#uF').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)re
  if(!(OK.test(f.type)||(!f.type&&EXT.test(f.name))))return toast('Solo se permiten fotos');
  try{UPH=(await photo(f,96)).toDataURL('image/jpeg',.7);if(acct){acct.p=UPH;AS();flush();openU()}else toast('✅ Foto lista')}catch{toast('No pude leer esa foto')}};
 
-/* monedas: las maneja el servidor */
+/* monedas: guardadas localmente en este navegador */
 function lost(e){if(/^(Sesión|Cuenta bloq)/.test(e.message)){acct=null;AS();who();toast(e.message)}}
 async function gain(){if(!acct){st.coins+=50;coins();rain(50);return}
- try{const r=await api('earn',{n:acct.n,k:acct.k});st.coins=r.c;coins();r.v&&rain(r.v)}catch(e){lost(e)}}
+ try{const r=await localAction('earn',{n:acct.n,k:acct.k});st.coins=r.c;coins();r.v&&rain(r.v)}catch(e){lost(e)}}
 /* mantener / normal */
 $('#kp').value=st.keep?1:0;$('#kp').onchange=()=>{st.keep=$('#kp').value==='1';save()};
 
 /* buscar y regalar */
 let sqt;
 async function bs(){const L=$('#bl');L.innerHTML='<div class="lb">Buscando…</div>';
- try{const j=await api('find',{q:$('#bq').value});L.innerHTML=j.u.length?'':'<div class="lb">No hay nadie con ese nombre</div>';
+ try{const j=await localAction('find',{q:$('#bq').value});L.innerHTML=j.u.length?'':'<div class="lb">No hay nadie con ese nombre</div>';
   j.u.forEach(u=>{const b=document.createElement('button');b.className='sm';b.style.cssText='display:flex;align-items:center;gap:10px;text-align:left';b.innerHTML=pic(u.p,34)+'<b>'+esc(u.n)+'</b>';b.onclick=()=>pick(u.n);L.append(b)})}
  catch(e){L.innerHTML='<div class="lb">'+esc(e.message)+'</div>'}}
 function pick(n){$('#bl').innerHTML=`<div class="lb">Regalar monedas a</div><b style="font-size:20px">${esc(n)}</b><div class="lb">Tienes ${fmt(st.coins)} monedas</div><input class="in" id="ga" type="number" inputmode="numeric" min="1" placeholder="Cantidad a regalar"><div class="lb" id="gm"></div><button class="ok2" id="gb">🎁 Regalar</button><button class="sm" id="gc">← Volver a la lista</button>`;
@@ -640,7 +689,7 @@ function pick(n){$('#bl').innerHTML=`<div class="lb">Regalar monedas a</div><b s
   if(!(a>=1))return M.textContent='Pon una cantidad válida';
   if(a>st.coins)return M.textContent='❌ No te alcanzan las monedas';
   $('#gb').disabled=true;M.textContent='Enviando…';
-  try{await flush();const j=await api('gift',{n:acct.n,k:acct.k,to:n,amt:a});st.coins=j.c;coins();toast('🎁 Regalaste '+fmt(a)+' coins a '+n);bs()}
+  try{await flush();const j=await localAction('gift',{n:acct.n,k:acct.k,to:n,amt:a});st.coins=j.c;coins();toast('🎁 Regalaste '+fmt(a)+' coins a '+n);bs()}
   catch(e){M.textContent='❌ '+e.message;$('#gb').disabled=false}}}
 $('#bq').oninput=()=>{clearTimeout(sqt);sqt=setTimeout(bs,300)};
 $('#bB').onclick=()=>{open('#sB');bs()};
@@ -650,23 +699,32 @@ function packs(){const g=$('#pk');g.innerHTML='';
  [500,1500,5000,10000,50000].forEach(n=>{const d=document.createElement('div');d.className='it';
   d.innerHTML=`<div style="font-size:26px">${CI}</div><b>${fmt(n)}</b><small class="lb">monedas</small>`;
   const add=(t,f)=>{const b=document.createElement('button');b.textContent=t;b.onclick=f;d.append(b)};
-  if(OWN){add('Agarrar gratis',async()=>{if(!acct)return need('Entra a tu cuenta para recibirlas.');try{const j=await api('grant',{key:OWN,n:acct.n,k:acct.k,v:n});st.coins=j.c;coins();rain(n)}catch(e){toast(e.message);lost(e)}});add('Crear código',()=>mk(n))}else add('Comprar',()=>pay(n));
+  if(OWN){add('Agarrar gratis',()=>{st.coins+=n;coins();rain(n);toast('Se agregaron '+fmtx(n)+' monedas en este navegador')});add('Crear código',()=>mk(n))}else add('Comprar',()=>pay(n));
   g.append(d)})}
-async function mk(n){try{const j=await api('mk',{key:OWN,v:n}),m=encodeURIComponent('🎁 Tu código de regalo de '+fmtx(n)+' monedas:\n'+j.code+'\n\nCanjéalo en la ruleta: Monedas (＋) → Canjear código de regalo. Es de un solo uso.');
+async function mk(n){try{const j=await localAction('mk',{key:OWN,v:n}),m=encodeURIComponent('🎁 Tu código de regalo de '+fmtx(n)+' monedas:\n'+j.code+'\n\nCanjéalo en la ruleta: Monedas (＋) → Canjear código de regalo. Es de un solo uso.');
  $('#tH').textContent='Código creado';
- $('#tB').innerHTML=`<div class="lb">Ya se guardó en la nube. Sirve una sola vez (${fmtx(n)} monedas).</div><div class="in" style="font-size:18px;letter-spacing:1px;text-align:center;word-break:break-all;user-select:all"><b>${j.code}</b></div><button class="sm" id="mC">Copiar código</button><a class="ok2" target="_blank" rel="noopener" href="https://wa.me/?text=${m}">📤 Enviar por WhatsApp</a>`;
+ $('#tB').innerHTML=`<div class="lb">Código guardado en este navegador. Sirve una sola vez (${fmtx(n)} monedas).</div><div class="in" style="font-size:18px;letter-spacing:1px;text-align:center;word-break:break-all;user-select:all"><b>${j.code}</b></div><button class="sm" id="mC">Copiar código</button><a class="ok2" target="_blank" rel="noopener" href="https://wa.me/?text=${m}">📤 Enviar por WhatsApp</a>`;
  $('#mC').onclick=()=>{try{navigator.clipboard.writeText(j.code)}catch{}toast('Código copiado')};open('#sQ')}catch(e){toast(e.message)}}
 $('#rB').onclick=()=>{if(!acct)return need('Inicia sesión para canjear tu código.');
  $('#tH').textContent='Canjear código';
  $('#tB').innerHTML='<div class="lb">Pega aquí el código que te enviaron</div><input class="in" id="cc" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><div class="lb" id="cm"></div><button class="ok2" id="cb">Canjear</button>';
  $('#cb').onclick=async()=>{const M=$('#cm');M.textContent='Verificando…';
-  try{await flush();const j=await api('use',{n:acct.n,k:acct.k,code:$('#cc').value});st.coins=j.c;coins();M.innerHTML='🎉 ¡Canjeado! Recibiste <b>'+fmt(j.v)+'</b> monedas';$('#cb').hidden=true;rain(j.v)}
+  try{await flush();const j=await localAction('use',{n:acct.n,k:acct.k,code:$('#cc').value});st.coins=j.c;coins();M.innerHTML='🎉 ¡Canjeado! Recibiste <b>'+fmt(j.v)+'</b> monedas';$('#cb').hidden=true;rain(j.v)}
   catch(e){M.textContent='❌ '+e.message}};open('#sQ')};
 /* botón invisible (esquina inferior derecha): modo dueño */
+function refreshOwnerGrant(){const b=$('#ownerGrantBtn');if(b)b.hidden=!OWN;}
+$('#ownerGrantBtn').onclick=()=>{
+ if(!OWN)return toast('Activa primero el modo dueño');
+ if(!acct)return need('Inicia sesión en tu cuenta antes de transferir monedas.');
+ $('#tH').textContent='Transferir monedas a mi cuenta';
+ $('#tB').innerHTML='<div class="lb">Elige la cantidad que quieres acreditar a tu propia cuenta.</div><input class="in" id="ownerAmount" type="number" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="Ej.: 1000000"><div class="lb">Cuenta destino: <b>'+esc(acct.n)+'</b></div><div class="lb" id="ownerAmountMsg"></div><button class="ok2" id="ownerAmountSend">Transferir monedas</button>';
+ $('#ownerAmountSend').onclick=async()=>{const m=$('#ownerAmountMsg'),v=Number($('#ownerAmount').value);if(!Number.isSafeInteger(v)||v<1||v>1000000000){m.textContent='Escribe una cantidad entera entre 1 y 1.000.000.000.';return}const b=$('#ownerAmountSend');b.disabled=true;m.textContent='Verificando autorización y transfiriendo…';try{await flush();const j=await localAction('grant',{key:OWN,n:acct.n,k:acct.k,v});st.coins=j.c;coins();m.textContent='Transferencia completada: '+fmtx(v)+' monedas.';rain(v);toast('Monedas acreditadas')}catch(e){m.textContent='No se pudo transferir: '+e.message;lost(e)}finally{b.disabled=false}};
+ open('#sQ');setTimeout(()=>$('#ownerAmount')?.focus(),100)
+};
 $('#hz').onclick=()=>{$('#tH').textContent='🔑 Dueño';
  $('#tB').innerHTML=OWN?'<div class="lb">Modo dueño activo ✓</div><button class="sm" id="oX">Desactivar</button>':'<input class="in" id="oK" type="password" placeholder="Código de dueño" autocomplete="off"><div class="lb" id="oM"></div><button class="ok2" id="oB">Activar</button>';
- if(OWN)$('#oX').onclick=()=>{OWN=null;try{localStorage.removeItem('ruleta_ok')}catch{}close();toast('Modo dueño desactivado')};
- else $('#oB').onclick=async()=>{try{const k=$('#oK').value;await api('own',{key:k});OWN=k;try{localStorage.setItem('ruleta_ok',k)}catch{}close();toast('Modo dueño activado')}catch(e){$('#oM').textContent='❌ '+e.message}};
+ if(OWN)$('#oX').onclick=()=>{OWN=null;refreshOwnerGrant();close();toast('Modo dueño desactivado hasta recargar la página')};
+ else $('#oB').onclick=()=>{const k=$('#oK').value;if(k!==LOCAL_OWNER_KEY){$('#oM').textContent='❌ Código incorrecto';return}OWN=LOCAL_OWNER_KEY;refreshOwnerGrant();close();toast('Modo dueño activado en este archivo')};
  open('#sQ')};
 
 /* fondos que se mueven + fondos nuevos + aros de luz nuevos */
@@ -704,5 +762,5 @@ $('#bE').innerHTML=EYE[0];apply();
 $('#go').onclick=spin;
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{draw();size()},150)});
 draw();list();size();
-coins();who();boot();
+coins();who();refreshOwnerGrant();boot();
 </script></body></html>
