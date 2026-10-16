@@ -181,7 +181,7 @@ body{background:none!important}
 
 <div id="bga" hidden></div>
 <main id="app">
- <div id="tb"><div id="cp"><span id="cI"></span><b id="cN">0</b><button id="cP">＋</button></div><div class="r"><button class="sm" id="ownerGrantBtn" hidden>＋ Monedas dueño</button><button class="sm" id="bE" aria-label="Ocultar botones"></button><button class="sm" id="bT"><span id="tI">🏪</span> Tienda</button></div></div>
+ <div id="tb"><div id="cp"><span id="cI"></span><b id="cN">0</b><button id="cP">＋</button></div><div class="r"><button class="sm" id="bE" aria-label="Ocultar botones"></button><button class="sm" id="bT"><span id="tI">🏪</span> Tienda</button></div></div>
  <div id="ck">⏱ <span id="cT">0:00</span> <small>→ +50 🪙</small></div>
  <div id="an" hidden></div>
  <div id="wb">
@@ -335,7 +335,12 @@ function loop(t){const dt=Math.min(40,t-lt);lt=t;fc.clearRect(0,0,innerWidth,inn
 const bd=$('#bd');let cur=null;
 function open(id){close();cur=$(id);cur.classList.add('open');bd.classList.add('on')}
 function close(){cur&&cur.classList.remove('open');bd.classList.remove('on');cur=null}
-$('#bM').onclick=()=>open('#sA');$('#bS').onclick=()=>open('#sC');bd.onclick=close;
+$('#bM').onclick=()=>{
+ $('#tH').textContent='Elegir cantidad de monedas';
+ $('#tB').innerHTML='<div class="lb">Escribe cuántas monedas quieres agregar.</div><input class="in" id="freeCoinAmount" type="number" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="Ej.: 1000000"><div class="lb" id="freeCoinMsg">Se aplicará a las monedas guardadas en este navegador.</div><button class="ok2" id="freeCoinAdd">Agregar monedas</button>';
+ $('#freeCoinAdd').onclick=()=>{const v=Number($('#freeCoinAmount').value),m=$('#freeCoinMsg');if(!Number.isSafeInteger(v)||v<1||v>1000000000){m.textContent='Escribe una cantidad entera entre 1 y 1.000.000.000.';return}st.coins+=v;coins();m.textContent='Se agregaron '+fmtx(v)+' monedas en este navegador.';rain(v);toast('Monedas agregadas')};
+ open('#sQ');setTimeout(()=>$('#freeCoinAmount')?.focus(),100)
+};$('#bS').onclick=()=>open('#sC');bd.onclick=close;
 document.querySelectorAll('.x').forEach(b=>b.onclick=close);
 
 let tt;function toast(m){const t=$('#ts');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2300)}
