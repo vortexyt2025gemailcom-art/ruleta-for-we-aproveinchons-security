@@ -335,12 +335,7 @@ function loop(t){const dt=Math.min(40,t-lt);lt=t;fc.clearRect(0,0,innerWidth,inn
 const bd=$('#bd');let cur=null;
 function open(id){close();cur=$(id);cur.classList.add('open');bd.classList.add('on')}
 function close(){cur&&cur.classList.remove('open');bd.classList.remove('on');cur=null}
-$('#bM').onclick=()=>{
- $('#tH').textContent='Elegir cantidad de monedas';
- $('#tB').innerHTML='<div class="lb">Escribe cuántas monedas quieres agregar.</div><input class="in" id="freeCoinAmount" type="number" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="Ej.: 1000000"><div class="lb" id="freeCoinMsg">Se aplicará a las monedas guardadas en este navegador.</div><button class="ok2" id="freeCoinAdd">Agregar monedas</button>';
- $('#freeCoinAdd').onclick=()=>{const v=Number($('#freeCoinAmount').value),m=$('#freeCoinMsg');if(!Number.isSafeInteger(v)||v<1||v>1000000000){m.textContent='Escribe una cantidad entera entre 1 y 1.000.000.000.';return}st.coins+=v;coins();m.textContent='Se agregaron '+fmtx(v)+' monedas en este navegador.';rain(v);toast('Monedas agregadas')};
- open('#sQ');setTimeout(()=>$('#freeCoinAmount')?.focus(),100)
-};$('#bS').onclick=()=>open('#sC');bd.onclick=close;
+$('#bM').onclick=()=>open('#sA');$('#bS').onclick=()=>open('#sC');bd.onclick=close;
 document.querySelectorAll('.x').forEach(b=>b.onclick=close);
 
 let tt;function toast(m){const t=$('#ts');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2300)}
@@ -668,19 +663,10 @@ $('#rB').onclick=()=>{if(!acct)return need('Inicia sesión para canjear tu códi
   try{await flush();const j=await api('use',{n:acct.n,k:acct.k,code:$('#cc').value});st.coins=j.c;coins();M.innerHTML='🎉 ¡Canjeado! Recibiste <b>'+fmt(j.v)+'</b> monedas';$('#cb').hidden=true;rain(j.v)}
   catch(e){M.textContent='❌ '+e.message}};open('#sQ')};
 /* botón invisible (esquina inferior derecha): modo dueño */
-function refreshOwnerGrant(){const b=$('#ownerGrantBtn');if(b)b.hidden=!OWN;}
-$('#ownerGrantBtn').onclick=()=>{
- if(!OWN)return toast('Activa primero el modo dueño');
- if(!acct)return need('Inicia sesión en tu cuenta antes de transferir monedas.');
- $('#tH').textContent='Transferir monedas a mi cuenta';
- $('#tB').innerHTML='<div class="lb">Elige la cantidad que quieres acreditar a tu propia cuenta.</div><input class="in" id="ownerAmount" type="number" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="Ej.: 1000000"><div class="lb">Cuenta destino: <b>'+esc(acct.n)+'</b></div><div class="lb" id="ownerAmountMsg"></div><button class="ok2" id="ownerAmountSend">Transferir monedas</button>';
- $('#ownerAmountSend').onclick=async()=>{const m=$('#ownerAmountMsg'),v=Number($('#ownerAmount').value);if(!Number.isSafeInteger(v)||v<1||v>1000000000){m.textContent='Escribe una cantidad entera entre 1 y 1.000.000.000.';return}const b=$('#ownerAmountSend');b.disabled=true;m.textContent='Verificando autorización y transfiriendo…';try{await flush();const j=await api('grant',{key:OWN,n:acct.n,k:acct.k,v});st.coins=j.c;coins();m.textContent='Transferencia completada: '+fmtx(v)+' monedas.';rain(v);toast('Monedas acreditadas')}catch(e){m.textContent='No se pudo transferir: '+e.message;lost(e)}finally{b.disabled=false}};
- open('#sQ');setTimeout(()=>$('#ownerAmount')?.focus(),100)
-};
 $('#hz').onclick=()=>{$('#tH').textContent='🔑 Dueño';
  $('#tB').innerHTML=OWN?'<div class="lb">Modo dueño activo ✓</div><button class="sm" id="oX">Desactivar</button>':'<input class="in" id="oK" type="password" placeholder="Código de dueño" autocomplete="off"><div class="lb" id="oM"></div><button class="ok2" id="oB">Activar</button>';
- if(OWN)$('#oX').onclick=()=>{OWN=null;try{localStorage.removeItem('ruleta_ok')}catch{}refreshOwnerGrant();close();toast('Modo dueño desactivado')};
- else $('#oB').onclick=async()=>{try{const k=$('#oK').value;await api('own',{key:k});OWN=k;try{localStorage.setItem('ruleta_ok',k)}catch{}refreshOwnerGrant();close();toast('Modo dueño activado')}catch(e){$('#oM').textContent='❌ '+e.message}};
+ if(OWN)$('#oX').onclick=()=>{OWN=null;try{localStorage.removeItem('ruleta_ok')}catch{}close();toast('Modo dueño desactivado')};
+ else $('#oB').onclick=async()=>{try{const k=$('#oK').value;await api('own',{key:k});OWN=k;try{localStorage.setItem('ruleta_ok',k)}catch{}close();toast('Modo dueño activado')}catch(e){$('#oM').textContent='❌ '+e.message}};
  open('#sQ')};
 
 /* fondos que se mueven + fondos nuevos + aros de luz nuevos */
@@ -718,5 +704,5 @@ $('#bE').innerHTML=EYE[0];apply();
 $('#go').onclick=spin;
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{draw();size()},150)});
 draw();list();size();
-coins();who();refreshOwnerGrant();boot();
+coins();who();boot();
 </script></body></html>
